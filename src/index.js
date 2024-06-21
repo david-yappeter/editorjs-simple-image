@@ -1,7 +1,7 @@
 /**
  * Build styles
  */
-import './simple_image.css';
+import './index.css';
 
 import {
   IconAddBorder,
