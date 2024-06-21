@@ -1,9 +1,13 @@
 /**
  * Build styles
  */
-import './index.css';
+import './simple_image.css';
 
-import { IconAddBorder, IconStretch, IconAddBackground } from '@codexteam/icons';
+import {
+  IconAddBorder,
+  IconStretch,
+  IconAddBackground,
+} from '@codexteam/icons';
 
 /**
  * SimpleImage Tool for the Editor.js
@@ -16,6 +20,8 @@ import { IconAddBorder, IconStretch, IconAddBackground } from '@codexteam/icons'
  * @property {boolean} withBorder - should image be rendered with border
  * @property {boolean} withBackground - should image be rendered with background
  * @property {boolean} stretched - should image be stretched to full width of container
+ * @property {function(string): string} loader - method that load the image
+ * @property {function(string): Promise.<UploadResponseFormat>} uploader - method that upload image by File
  */
 export default class SimpleImage {
   /**
@@ -33,6 +39,12 @@ export default class SimpleImage {
      */
     this.api = api;
     this.readOnly = readOnly;
+
+    // config
+    this.config = {
+      loader: config.loader || (() => ''),
+      uploader: config.uploader || undefined,
+    };
 
     /**
      * When block is only constructing,
@@ -74,10 +86,12 @@ export default class SimpleImage {
      * Tool's initial data
      */
     this.data = {
+      file_id: data.file_id || '',
       url: data.url || '',
       caption: data.caption || '',
       withBorder: data.withBorder !== undefined ? data.withBorder : false,
-      withBackground: data.withBackground !== undefined ? data.withBackground : false,
+      withBackground:
+        data.withBackground !== undefined ? data.withBackground : false,
       stretched: data.stretched !== undefined ? data.stretched : false,
     };
 
@@ -113,21 +127,31 @@ export default class SimpleImage {
    */
   render() {
     const wrapper = this._make('div', [this.CSS.baseClass, this.CSS.wrapper]),
-        loader = this._make('div', this.CSS.loading),
-        imageHolder = this._make('div', this.CSS.imageHolder),
-        image = this._make('img'),
-        caption = this._make('div', [this.CSS.input, this.CSS.caption], {
-          contentEditable: !this.readOnly,
-          innerHTML: this.data.caption || '',
-        });
+      loader = this._make('div', this.CSS.loading),
+      imageHolder = this._make('div', this.CSS.imageHolder),
+      image = this._make('img'),
+      caption = this._make('div', [this.CSS.input, this.CSS.caption], {
+        contentEditable: !this.readOnly,
+        innerHTML: this.data.caption || '',
+      });
 
     caption.dataset.placeholder = 'Enter a caption';
 
     wrapper.appendChild(loader);
 
-    if (this.data.url) {
+    if (
+      this.data.file_id !== null &&
+      this.data.file_id !== '' &&
+      this.config.loader
+    ) {
+      image.src = this.config.loader(this.data.file_id);
+    } else if (this.data.url) {
       image.src = this.data.url;
     }
+
+    // if (this.data.url) {
+    //   image.src = this.data.url
+    // }
 
     image.onload = () => {
       wrapper.classList.remove(this.CSS.loading);
@@ -158,7 +182,7 @@ export default class SimpleImage {
    */
   save(blockContent) {
     const image = blockContent.querySelector('img'),
-        caption = blockContent.querySelector('.' + this.CSS.input);
+      caption = blockContent.querySelector('.' + this.CSS.input);
 
     if (!image) {
       return this.data;
@@ -175,6 +199,7 @@ export default class SimpleImage {
    */
   static get sanitize() {
     return {
+      file_id: {},
       url: {},
       withBorder: {},
       withBackground: {},
@@ -198,6 +223,21 @@ export default class SimpleImage {
    * Read pasted image and convert it to base64
    *
    * @static
+   * @param {string} imgSrcUrl
+   * @returns {Promise<SimpleImageData>}
+   */
+  onImgUrlDropHandler(imgSrcUrl) {
+    return new Promise((resolve) => {
+      this.config.uploader(imgSrcUrl).then((result) => {
+        resolve(result.file);
+      });
+    });
+  }
+
+  /**
+   * Read pasted image and convert it to base64
+   *
+   * @static
    * @param {File} file
    * @returns {Promise<SimpleImageData>}
    */
@@ -206,7 +246,7 @@ export default class SimpleImage {
 
     reader.readAsDataURL(file);
 
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       reader.onload = (event) => {
         resolve({
           url: event.target.result,
@@ -226,9 +266,18 @@ export default class SimpleImage {
       case 'tag': {
         const img = event.detail.data;
 
-        this.data = {
-          url: img.src,
-        };
+        this.onImgUrlDropHandler(img.src).then((respData) => {
+          this.data = {
+            ...respData,
+            url: this.config.loader(respData.file_id),
+            caption: '',
+          };
+        });
+
+        // {
+        //   url: event.target.result,
+        //   caption: file.name,
+        // }
         break;
       }
 
@@ -244,10 +293,9 @@ export default class SimpleImage {
       case 'file': {
         const { file } = event.detail;
 
-        this.onDropHandler(file)
-          .then(data => {
-            this.data = data;
-          });
+        this.onDropHandler(file).then((data) => {
+          this.data = data;
+        });
 
         break;
       }
@@ -297,7 +345,7 @@ export default class SimpleImage {
         },
       ],
       files: {
-        mimeTypes: [ 'image/*' ],
+        mimeTypes: ['image/*'],
       },
     };
   }
@@ -308,14 +356,14 @@ export default class SimpleImage {
    * @returns {Array}
    */
   renderSettings() {
-    return this.tunes.map(tune => ({
+    return this.tunes.map((tune) => ({
       ...tune,
       label: this.api.i18n.t(tune.label),
       toggle: true,
       onActivate: () => this._toggleTune(tune.name),
       isActive: !!this.data[tune.name],
-    }))
-  };
+    }));
+  }
 
   /**
    * Helper for making Elements with attributes
@@ -358,8 +406,13 @@ export default class SimpleImage {
    * @private
    */
   _acceptTuneView() {
-    this.tunes.forEach(tune => {
-      this.nodes.imageHolder.classList.toggle(this.CSS.imageHolder + '--' + tune.name.replace(/([A-Z])/g, (g) => `-${g[0].toLowerCase()}`), !!this.data[tune.name]);
+    this.tunes.forEach((tune) => {
+      this.nodes.imageHolder.classList.toggle(
+        this.CSS.imageHolder +
+          '--' +
+          tune.name.replace(/([A-Z])/g, (g) => `-${g[0].toLowerCase()}`),
+        !!this.data[tune.name]
+      );
 
       if (tune.name === 'stretched') {
         this.api.blocks.stretchBlock(this.blockIndex, !!this.data.stretched);
