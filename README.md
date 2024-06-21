@@ -13,17 +13,14 @@ Works only with pasted image URLs and requires no server-side uploader.
 Get the package
 
 ```shell
-yarn add @editorjs/simple-image
+yarn add @davidyappeter/editorjs-simple-image
 ```
 
 Include module at your application
 
 ```javascript
-import SimpleImage from "@editorjs/simple-image";
+import SimpleImage from "@davidyappeter/editorjs-simple-image";
 ```
-
-Optionally, you can load this tool from CDN [JsDelivr CDN](https://cdn.jsdelivr.net/npm/@editorjs/simple-image)
-
 
 ## Usage
 
@@ -44,7 +41,11 @@ var editor = EditorJS({
 
 ## Config Params
 
-This Tool has no config params
+| Config Param   | Type                                                | Description                                                   |
+| -------------- | --------------------------------------------------- | ------------------------------------------------------------- |
+| loader         | `function(string): string`                          | Image Loader for multiline copy type 'tag'                    |
+| uploader       | `function(string): Promise.<UploadResponseFormat>`  | File uploader that required the file url (use proxy server)   |
+
 
 ## Tool's settings
 
@@ -60,6 +61,7 @@ This Tool has no config params
 
 | Field          | Type      | Description                     |
 | -------------- | --------- | ------------------------------- |
+| file_id        | `string`  | File Id                         |
 | url            | `string`  | image's url                     |
 | caption        | `string`  | image's caption                 |
 | withBorder     | `boolean` | add border to image             |
@@ -68,6 +70,7 @@ This Tool has no config params
 
 ```json
 {
+  "file_id": "file_unique_id",
   "type": "image",
   "data": {
     "url": "https://www.tesla.com/tesla_theme/assets/img/_vehicle_redesign/roadster_and_semi/roadster/hero.jpg",
